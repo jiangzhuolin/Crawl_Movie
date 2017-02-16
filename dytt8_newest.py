@@ -6,7 +6,6 @@ import time
 import random
 import mysql.connector
 import re
-import requests
 from bs4 import BeautifulSoup
 
 
@@ -29,19 +28,6 @@ def open_url(url):
         print(e)
         return -1
 
-
-"""
-# 保存到文件
-def save_file(dict_href):
-    folder = './target'
-    os.mkdir(folder)
-    os.chdir(folder)
-    for each in dict_href.items():
-        # 保存文件
-        with open('target.txt','a') as f:
-            f.write(each[0] + ' ' + each[1] + '\n')
-        #time.sleep(1)
-"""
 
 # 保存到数据库
 def insert_data(datalist):   
@@ -70,10 +56,15 @@ def insert_data(datalist):
     #插入数据
     count = 0
     for each in datalist:
-        count += 1
-        sql = 'insert into VIDEO_LIST(TITLE1,TITLE2,VIDEO_NAME,href,Create_time,update_time) VALUES(%s,%s,%s,%s,%s,%s)'
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(sql,(each['title1'],each['title2'],str(each['video_name']),str(each['href']),now,now))
+        query_sql = "select title1 num from VIDEO_LIST where video_name = '%s'"
+        cursor.execute(query_sql,str(each['video_name']))
+        result = cursor.fetchone()
+        boolean = True if result == None else (len(result) == 0 or not (each['title1'],) in result)
+        if boolean:
+            count += 1
+            insert_sql = 'insert into VIDEO_LIST(TITLE1,TITLE2,VIDEO_NAME,href,Create_time,update_time) VALUES(%s,%s,%s,%s,%s,%s)'
+            now = time.strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute(insert_sql,(each['title1'],each['title2'],str(each['video_name']),str(each['href']),now,now))
     print('数据插入完成，成功插入%s条记录'%count)
 
     cursor.close()
@@ -91,7 +82,7 @@ def crawler():
         html_page = open_url(full_url)
         if html_page == -1:
             print('打开网站失败...')
-            return -1
+            continue
         print('开始爬取第[' + str(i) + ']页')
         html_page = html_page.decode('gbk', errors='ignore')
         soup = BeautifulSoup(html_page,"html.parser")
@@ -106,8 +97,8 @@ def crawler():
             href = domain + link.get('href')
             video_name = link.string
             #link1 = link.find_previous('a')
-            dict_video['title1'] = '最新电影'
-            dict_video['title2'] = ''
+            dict_video['title1'] = title1
+            dict_video['title2'] = title2
             dict_video['video_name'] = video_name
             dict_video['href'] = href
             video_list.append(dict_video)
@@ -120,7 +111,16 @@ def crawler():
         print('第[' + str(i) + ']页爬取完成，将休眠[' + str(t) + ']秒')
         time.sleep(t)
     print('爬取结束！')
+    return 1
 
 # 程序入口    
 if __name__ == '__main__':
-    crawler()
+    while 1:
+        flag = crawler()
+        if flag > 0:
+            print('正常爬取完成，程序将休眠4小时~')
+            time.sleep(14400)
+        else:
+            print('爬取异常，10分钟后重启程序')
+            time.sleep(600)
+
